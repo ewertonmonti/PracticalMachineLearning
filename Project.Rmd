@@ -1,0 +1,101 @@
+---
+title: "Weight Lifting Exercise"
+author: "Ewerton Monti"
+output: html_document
+---
+
+
+
+## Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.  
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the
+website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight
+Lifting Exercise Dataset).
+
+```{r, message=FALSE, echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+## Data loading
+```{r, echo=FALSE}
+setwd("C:/Users/Ewerton/Dropbox/Curso_Data_Science/8_MachineLearning/Project")
+```
+The two data sets available - training and testing - were downloaded and imported into R. The testing data set is not used in this report; it is used in the prediction quiz test only. However, a testing data set was created for this report from the original training data set, was is indicated below.
+A seed was set in order to allow the reproducibility of the results. 
+```{r}
+trainingURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainingURL, destfile = "./pml-training.csv")
+download.file(testingURL, destfile = "./pml-testing.csv")
+training <- read.csv("./pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+test_dataset <- read.csv("./pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+set.seed(12345)
+```
+
+
+## Data cleaning
+Useless or problematic variables were removed from the data set in order to clean the database, to allow the model development to be executed and to generate more accurate models. The first seven columns of the data set, containing identification and control variables were removed.
+```{r }
+training <- training[,-c(1:7)]
+```
+The original training data set had many missing values. Some variables recorder statistical measures of other. Their names started with amplitude, avg, kurtosis, max, min, skewness, stddev and var. They had valid values only for specific rows, and their were created by the researchers, not directly measured by the devices. So it was decided to remove this variables. 
+```{r, warning=0}
+library(dplyr)
+training <- select(training, -starts_with("amplitude"))
+training <- select(training, -starts_with("avg"))
+training <- select(training, -starts_with("kurtosis"))
+training <- select(training, -starts_with("max"))
+training <- select(training, -starts_with("min"))
+training <- select(training, -starts_with("skewness"))
+training <- select(training, -starts_with("stddev"))
+training <- select(training, -starts_with("var"))
+```
+
+# Data spliting
+The original training data set was split in to parts, creating a testing data set with aroud 30% of the cases.
+```{r, warning=0}
+library("caret")
+trainIndex <- createDataPartition(y = training$classe, p=0.7, list=FALSE)
+training <- training[trainIndex,]
+testing <- training[-trainIndex,]
+```
+The size of the final training and testing data sets is shown below.
+```{r, warning=0}
+dim(training);dim(testing)
+```
+
+## Decision tree model
+The first model developed was a classification tree, using the rpart method in the caret package. A 5-fold cross validation was performed. 
+```{r, warning=0}
+trControl <- trainControl(method = "cv", number = 5)
+dtModel <- train(y = training$classe, x = training[,1:52], method = "rpart", trControl = trControl)
+library(rattle)
+fancyRpartPlot(dtModel$finalModel, main = "Classification tree", sub = "")
+```
+
+However, the out of sample error is high, with an accuracy of only 49.39%.
+```{r, warning=0}
+dtPredict <- predict(dtModel, testing)
+confusionMatrix(dtPredict, testing$classe)
+```
+
+## Random forest model
+The random forest model showed extremely positive results, with an accurary of 100%.
+```{r, warning=0}
+library(randomForest)
+rfModel<- randomForest(y = training$classe, x = training[,1:52], type = "class")
+rfPredict <- predict(rfModel, testing)
+confusionMatrix(rfPredict, testing$classe)
+```
+The first plot above shows the declining error rates of the model, as the number of trees increased.
+```{r}
+plot(rfModel)
+```
+
+This plot shows the variable importance, highlighting roll_belt and yaw_belt as the most important.
+```{r}
+varImpPlot(rfModel)
+```
+
+This random forest model also recorded an accuracy of 100% on the original testing data set.
+
